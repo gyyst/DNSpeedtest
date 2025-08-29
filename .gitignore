@@ -43,3 +43,5 @@ nb-configuration.xml
 /.quarkus/cli/plugins/
 # TLS Certificates
 .certs/
+/dns.txt
+/dns_speed_result_20250829_212239.txt
