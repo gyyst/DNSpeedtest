@@ -28,6 +28,7 @@ public class DNSSpeedTestTest {
         Assertions.assertFalse(dnsSpeedTest.isValidDNSServer(null));
         Assertions.assertFalse(dnsSpeedTest.isValidDNSServer(""));
         Assertions.assertFalse(dnsSpeedTest.isValidDNSServer("   "));
+        Assertions.assertFalse(dnsSpeedTest.isValidDNSServer("invalid.dns"));
         Assertions.assertFalse(dnsSpeedTest.isValidDNSServer("999.999.999.999"));
     }
 
@@ -35,12 +36,13 @@ public class DNSSpeedTestTest {
     public void testSingleDNSSpeed() {
         // 测试单个DNS服务器（使用Google DNS）
         DNSResult result = dnsSpeedTest.testSingleDNS("8.8.8.8", "www.baidu.com");
-
+        
         Assertions.assertNotNull(result);
         Assertions.assertEquals("8.8.8.8", result.getDnsServer());
-
+        
         if (result.isSuccess()) {
             Assertions.assertTrue(result.getResponseTime() > 0);
+            Assertions.assertNotNull(result.getResolvedIP());
             System.out.println("DNS测试成功: " + result.toString());
         } else {
             System.out.println("DNS测试失败: " + result.toString());
@@ -55,17 +57,17 @@ public class DNSSpeedTestTest {
             "1.1.1.1",      // Cloudflare DNS
             "114.114.114.114" // 114 DNS
         );
-
+        
         List<DNSResult> results = dnsSpeedTest.testMultipleDNS(dnsServers, "www.baidu.com");
-
+        
         Assertions.assertNotNull(results);
         Assertions.assertEquals(3, results.size());
-
+        
         System.out.println("多DNS测试结果:");
         for (int i = 0; i < results.size(); i++) {
             System.out.printf("%d. %s%n", i + 1, results.get(i).toString());
         }
-
+        
         // 验证结果是否按响应时间排序（成功的结果）
         DNSResult prev = null;
         for (DNSResult result : results) {
@@ -79,10 +81,10 @@ public class DNSSpeedTestTest {
     @Test
     public void testDNSResultComparison() {
         // 测试DNSResult的比较功能
-        DNSResult result1 = new DNSResult("8.8.8.8", 50);
-        DNSResult result2 = new DNSResult("1.1.1.1", 100);
+        DNSResult result1 = new DNSResult("8.8.8.8", 50, "142.251.43.4");
+        DNSResult result2 = new DNSResult("1.1.1.1", 100, "142.251.43.4");
         DNSResult result3 = new DNSResult("114.114.114.114", "测试失败");
-
+        
         Assertions.assertTrue(result1.compareTo(result2) < 0);
         Assertions.assertTrue(result2.compareTo(result3) < 0);
         Assertions.assertTrue(result1.compareTo(result3) < 0);

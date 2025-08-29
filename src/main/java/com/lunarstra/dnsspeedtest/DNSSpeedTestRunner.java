@@ -9,6 +9,7 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -30,8 +31,8 @@ public class DNSSpeedTestRunner implements Callable<Integer>, QuarkusApplication
     @Inject
     DNSSpeedTest dnsSpeedTest;
 
-    @Parameters(index = "0", description = "包含DNS服务器地址的文本文件路径（每行一个DNS地址）")
-    private String dnsFile;
+    @Parameters(index = "0", description = "包含DNS服务器地址的文本文件路径（每行一个DNS地址），默认：dns.txt", defaultValue = "dns.txt")
+    private String dnsFile = "dns.txt";
 
     @Option(names = {"-d", "--domain"}, description = "要解析的域名（默认：www.baidu.com）")
     private String domain = "www.baidu.com";
@@ -98,12 +99,12 @@ public class DNSSpeedTestRunner implements Callable<Integer>, QuarkusApplication
     }
 
     /**
-     * 从文件中读取DNS服务器列表
+     * 从文件中读取DNS服务器列表（使用UTF-8编码）
      */
     private List<String> readDNSServers(Path filePath) throws IOException {
         List<String> dnsServers = new ArrayList<>();
         
-        try (BufferedReader reader = Files.newBufferedReader(filePath)) {
+        try (BufferedReader reader = Files.newBufferedReader(filePath, StandardCharsets.UTF_8)) {
             String line;
             int lineNumber = 0;
             
@@ -129,10 +130,10 @@ public class DNSSpeedTestRunner implements Callable<Integer>, QuarkusApplication
     }
 
     /**
-     * 将结果写入文件
+     * 将结果写入文件（使用UTF-8编码）
      */
     private void writeResults(List<DNSResult> results, String fileName) throws IOException {
-        try (PrintWriter writer = new PrintWriter(new FileWriter(fileName))) {
+        try (PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(fileName), StandardCharsets.UTF_8))) {
             // 写入文件头信息
             writer.println("# DNS测速结果 - 生成时间: " + 
                           LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
