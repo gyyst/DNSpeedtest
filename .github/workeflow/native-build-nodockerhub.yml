@@ -1,0 +1,122 @@
+name: Build Quarkus Native Image and Container without upload dockerhub
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+permissions:
+  contents: write
+
+jobs:
+  create-tag-and-release:
+    runs-on: ubuntu-latest
+    outputs:
+      new_tag: ${{ steps.create_tag.outputs.new_tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Create new tag
+        id: create_tag
+        run: |
+          # 获取当前日期作为版本号的一部分
+          DATE=$(date +'%Y%m%d')
+          # 获取当天已有的tag数量，用于生成序号
+          COUNT=$(git tag -l "v*.$DATE.*" | wc -l)
+          # 新的序号 (当前数量+1)
+          NEW_COUNT=$((COUNT + 1))
+          # 创建新的tag，格式为 v1.YYYYMMDD.序号
+          NEW_TAG="v1.$DATE.$NEW_COUNT"
+          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+          
+          # 创建并推送新tag
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git tag $NEW_TAG
+          git push origin $NEW_TAG
+
+  build-and-package-native:
+    needs: create-tag-and-release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-tag-and-release.outputs.new_tag }}
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: chmod
+        run: chmod +x ./mvnw
+
+      - name: Build with Maven (compile)
+        run: ./mvnw clean compile
+
+      - name: Build native image
+        run: ./mvnw package -Pnative -DskipTests -Dquarkus.native.container-build=true
+
+      - name: Upload native binary to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: target/*-runner
+          tag_name: ${{ needs.create-tag-and-release.outputs.new_tag }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 新增Windows环境构建job
+  build-windows-native:
+    needs: create-tag-and-release
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-tag-and-release.outputs.new_tag }}
+      
+      - name: Set up GraalVM
+        id: setup-graalvm
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+      
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@v2
+      
+      - name: build Windows native image
+        shell: cmd
+        run: |
+          .\mvnw.cmd package -Pnative -DskipTests -Dquarkus.native.container-build=false -Dquarkus.native.additional-build-args=--verbose
+      
+      - name: Upload Windows native binary to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: target/*-runner.exe
+          tag_name: ${{ needs.create-tag-and-release.outputs.new_tag }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
